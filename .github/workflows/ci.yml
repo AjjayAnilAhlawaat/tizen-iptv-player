@@ -7,13 +7,11 @@ on:
     branches: [main]
 
 # permissions needed across both jobs:
-#   models: read        — GitHub Models API (gpt-4o, free)
 #   pull-requests: write — critic posts PR comment
 #   contents: read       — checkout
 permissions:
   contents: read
   pull-requests: write
-  models: read
 
 # Cancel in-flight runs on the same branch/PR when a new commit is pushed
 concurrency:
@@ -139,8 +137,8 @@ jobs:
 
   # ── JOB 2: Performance Critic ─────────────────────────────
   # Runs in parallel with build-validate.
-  # Calls gpt-4o via GitHub Models API (FREE — uses the automatic
-  # GITHUB_TOKEN, no repo secrets or billing required).
+  # Calls llama-3.3-70b-versatile via Groq API (FREE — no credit
+  # card, 128K context, 30 req/min on free tier).
   # Posts the full critique as a PR comment and FAILS if CRITICAL
   # or HIGH issues are found — acting as a hard merge gate.
   # ──────────────────────────────────────────────────────────
@@ -155,10 +153,11 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq -q
 
-      - name: Run IPTV Performance Critic (gpt-4o via GitHub Models)
+      - name: Run IPTV Performance Critic (llama-3.3-70b via Groq)
         id: critic
         env:
-          # GITHUB_TOKEN is automatic — no repo secret needed
+          # Free Groq API key — sign up at https://console.groq.com
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_SHA: ${{ github.sha }}

@@ -2,17 +2,19 @@
 # ══════════════════════════════════════════════════════════════
 # IPTV Performance Critic — GitHub Actions script
 #
-# Makes ONE call to the GitHub Models API (gpt-4o) — FREE,
-# uses the automatic GITHUB_TOKEN, zero secrets required.
-# No agentic loop — the model gets all source files and returns
-# a single structured JSON critique.
+# Makes ONE call to the Groq API (llama-3.3-70b-versatile).
+# Groq is FREE — no credit card, just a free account at
+# console.groq.com. Free tier: 128K context, 30 req/min.
+# No agentic loop — the model gets all source files in one
+# request and returns a single structured JSON critique.
 #
 # Outputs:
 #   - GitHub Step Summary (always)
 #   - PR comment that replaces any previous critique (on pull_request)
 #   - Exits 1 (fails the status check) if CRITICAL or HIGH issues found
 #
-# Required env vars (all automatic — no repo secrets needed):
+# Required env vars:
+#   GROQ_API_KEY        — free key from console.groq.com (repo secret)
 #   GH_TOKEN            — from secrets.GITHUB_TOKEN (automatic)
 #   GITHUB_EVENT_NAME   — provided by Actions runner
 #   GITHUB_SHA          — provided by Actions runner
@@ -28,11 +30,14 @@ ok()   { echo -e "${G}[critic] ✅${NC} $*"; }
 warn() { echo -e "${Y}[critic] ⚠️ ${NC} $*"; }
 fail() { echo -e "${R}[critic] ❌${NC} $*"; }
 
-# ── Guard: GitHub token ────────────────────────────────────────
-# GH_TOKEN is injected automatically by Actions — no repo secret needed.
-if [ -z "${GH_TOKEN:-}" ]; then
-  fail "GH_TOKEN is not set. This should never happen in a GitHub Actions runner."
-  fail "Ensure the workflow passes: GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}"
+# ── Guard: Groq API key ────────────────────────────────────────
+# Free key — sign up at https://console.groq.com (no credit card).
+# Add as a repo secret: Settings → Secrets → Actions → GROQ_API_KEY
+if [ -z "${GROQ_API_KEY:-}" ]; then
+  fail "GROQ_API_KEY secret is not set."
+  fail "1. Sign up FREE (no credit card) at https://console.groq.com"
+  fail "2. Create an API key under API Keys"
+  fail "3. Add it: gh secret set GROQ_API_KEY --repo ${GITHUB_REPOSITORY}"
   exit 1
 fi
 
@@ -83,9 +88,8 @@ optimized_code must be a drop-in replacement — exact, runnable code.'
 log "Reading source files…"
 
 # jq --rawfile reads each file as a raw string and handles all JSON escaping.
-# GitHub Models uses the OpenAI-compatible chat/completions format:
-#   - system prompt goes as the first message with role "system"
-#   - user message contains all four source files
+# Groq uses the OpenAI-compatible chat/completions format with 128K context —
+# all four source files fit comfortably in a single request.
 PAYLOAD=$(jq -n \
   --rawfile app_js    app.js      \
   --rawfile style_css style.css   \
@@ -93,8 +97,9 @@ PAYLOAD=$(jq -n \
   --rawfile cfg_xml   config.xml  \
   --arg     sys       "$SYSTEM_PROMPT" \
   '{
-    model:      "gpt-4o",
+    model:      "llama-3.3-70b-versatile",
     max_tokens: 4096,
+    temperature: 0.1,
     messages: [
       {
         role:    "system",
@@ -113,18 +118,18 @@ PAYLOAD=$(jq -n \
     ]
   }')
 
-# ── Call the GitHub Models API (free — uses GITHUB_TOKEN) ─────
-log "Calling gpt-4o via GitHub Models API (free, no billing)…"
+# ── Call the Groq API (free tier — no credit card required) ────
+log "Calling llama-3.3-70b-versatile via Groq API (free, 128K context)…"
 
 HTTP_CODE=$(curl -s -o /tmp/critique_response.json -w "%{http_code}" \
   --max-time 120 \
-  -H "Authorization: Bearer ${GH_TOKEN}" \
+  -H "Authorization: Bearer ${GROQ_API_KEY}" \
   -H "content-type: application/json" \
   -d "$PAYLOAD" \
-  "https://models.inference.ai.azure.com/chat/completions")
+  "https://api.groq.com/openai/v1/chat/completions")
 
 if [ "$HTTP_CODE" -ne 200 ]; then
-  fail "GitHub Models API returned HTTP ${HTTP_CODE}"
+  fail "Groq API returned HTTP ${HTTP_CODE}"
   cat /tmp/critique_response.json
   exit 1
 fi
@@ -215,7 +220,7 @@ SHORT_SHA="${GITHUB_SHA:0:7}"
 
 REPORT="## 🎬 IPTV Performance Critique
 
-> Powered by **gpt-4o via GitHub Models** (free) · Runs in parallel with the build · Hard merge gate on CRITICAL / HIGH
+> Powered by **llama-3.3-70b-versatile via Groq** (free) · Runs in parallel with the build · Hard merge gate on CRITICAL / HIGH
 
 | | |
 |---|---|
