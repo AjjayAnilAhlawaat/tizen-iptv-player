@@ -52,9 +52,10 @@ jobs:
 
       - name: Check required Tizen privilege declarations
         run: |
+          # Privileges are stored in the name= attribute, not text content
           for priv in "internet" "tv.inputdevice"; do
             if xmllint --xpath \
-              "//*[local-name()='privilege'][contains(text(),'${priv}')]" \
+              "//*[local-name()='privilege'][contains(@name,'${priv}')]" \
               config.xml > /dev/null 2>&1; then
               echo "✅ Privilege declared: ${priv}"
             else
