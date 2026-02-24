@@ -2,18 +2,18 @@
 # ══════════════════════════════════════════════════════════════
 # IPTV Performance Critic — GitHub Actions script
 #
-# Makes ONE call to the Anthropic Messages API (claude-opus-4-6).
-# No agentic loop — Claude gets all source files and returns a
-# single structured JSON critique.
+# Makes ONE call to the GitHub Models API (gpt-4o) — FREE,
+# uses the automatic GITHUB_TOKEN, zero secrets required.
+# No agentic loop — the model gets all source files and returns
+# a single structured JSON critique.
 #
 # Outputs:
 #   - GitHub Step Summary (always)
 #   - PR comment that replaces any previous critique (on pull_request)
 #   - Exits 1 (fails the status check) if CRITICAL or HIGH issues found
 #
-# Required env vars:
-#   ANTHROPIC_API_KEY   — Anthropic API key (from repo secret)
-#   GH_TOKEN            — GitHub token (from secrets.GITHUB_TOKEN)
+# Required env vars (all automatic — no repo secrets needed):
+#   GH_TOKEN            — from secrets.GITHUB_TOKEN (automatic)
 #   GITHUB_EVENT_NAME   — provided by Actions runner
 #   GITHUB_SHA          — provided by Actions runner
 #   GITHUB_REPOSITORY   — provided by Actions runner
@@ -28,16 +28,16 @@ ok()   { echo -e "${G}[critic] ✅${NC} $*"; }
 warn() { echo -e "${Y}[critic] ⚠️ ${NC} $*"; }
 fail() { echo -e "${R}[critic] ❌${NC} $*"; }
 
-# ── Guard: API key ─────────────────────────────────────────────
-if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-  fail "ANTHROPIC_API_KEY secret is not set."
-  fail "Go to: Settings → Secrets → Actions → New repository secret"
-  fail "Name: ANTHROPIC_API_KEY   Value: sk-ant-..."
+# ── Guard: GitHub token ────────────────────────────────────────
+# GH_TOKEN is injected automatically by Actions — no repo secret needed.
+if [ -z "${GH_TOKEN:-}" ]; then
+  fail "GH_TOKEN is not set. This should never happen in a GitHub Actions runner."
+  fail "Ensure the workflow passes: GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}"
   exit 1
 fi
 
 # ── System prompt ──────────────────────────────────────────────
-# Claude gets all source files and must return raw JSON only.
+# The model gets all source files and must return raw JSON only.
 SYSTEM_PROMPT='You are a ruthless, expert-level performance engineer specialising
 in Samsung Tizen TV applications, IPTV players, and constrained embedded browser
 environments.
@@ -83,7 +83,9 @@ optimized_code must be a drop-in replacement — exact, runnable code.'
 log "Reading source files…"
 
 # jq --rawfile reads each file as a raw string and handles all JSON escaping.
-# The user message embeds all four files so Claude gets the full picture.
+# GitHub Models uses the OpenAI-compatible chat/completions format:
+#   - system prompt goes as the first message with role "system"
+#   - user message contains all four source files
 PAYLOAD=$(jq -n \
   --rawfile app_js    app.js      \
   --rawfile style_css style.css   \
@@ -91,34 +93,38 @@ PAYLOAD=$(jq -n \
   --rawfile cfg_xml   config.xml  \
   --arg     sys       "$SYSTEM_PROMPT" \
   '{
-    model:      "claude-opus-4-6",
+    model:      "gpt-4o",
     max_tokens: 4096,
-    system:     $sys,
-    messages: [{
-      role:    "user",
-      content: (
-        "Analyse these Tizen IPTV source files for every performance defect:\n\n" +
-        "[FILE: app.js]\n"      + $app_js    + "\n\n" +
-        "[FILE: style.css]\n"   + $style_css + "\n\n" +
-        "[FILE: index.html]\n"  + $idx_html  + "\n\n" +
-        "[FILE: config.xml]\n"  + $cfg_xml
-      )
-    }]
+    messages: [
+      {
+        role:    "system",
+        content: $sys
+      },
+      {
+        role:    "user",
+        content: (
+          "Analyse these Tizen IPTV source files for every performance defect:\n\n" +
+          "[FILE: app.js]\n"      + $app_js    + "\n\n" +
+          "[FILE: style.css]\n"   + $style_css + "\n\n" +
+          "[FILE: index.html]\n"  + $idx_html  + "\n\n" +
+          "[FILE: config.xml]\n"  + $cfg_xml
+        )
+      }
+    ]
   }')
 
-# ── Call the Anthropic Messages API ───────────────────────────
-log "Calling Claude claude-opus-4-6 (one-shot — not an agentic loop)…"
+# ── Call the GitHub Models API (free — uses GITHUB_TOKEN) ─────
+log "Calling gpt-4o via GitHub Models API (free, no billing)…"
 
 HTTP_CODE=$(curl -s -o /tmp/critique_response.json -w "%{http_code}" \
   --max-time 120 \
-  -H "x-api-key: ${ANTHROPIC_API_KEY}" \
-  -H "anthropic-version: 2023-06-01" \
+  -H "Authorization: Bearer ${GH_TOKEN}" \
   -H "content-type: application/json" \
   -d "$PAYLOAD" \
-  "https://api.anthropic.com/v1/messages")
+  "https://models.inference.ai.azure.com/chat/completions")
 
 if [ "$HTTP_CODE" -ne 200 ]; then
-  fail "Anthropic API returned HTTP ${HTTP_CODE}"
+  fail "GitHub Models API returned HTTP ${HTTP_CODE}"
   cat /tmp/critique_response.json
   exit 1
 fi
@@ -126,7 +132,8 @@ fi
 ok "API responded HTTP ${HTTP_CODE}"
 
 # ── Extract & validate the JSON critique ──────────────────────
-RAW_TEXT=$(jq -r '.content[0].text' /tmp/critique_response.json)
+# OpenAI-compatible response: .choices[0].message.content
+RAW_TEXT=$(jq -r '.choices[0].message.content' /tmp/critique_response.json)
 
 # Strip accidental markdown fences if Claude wrapped the JSON
 CRITIQUE=$(echo "$RAW_TEXT" \
@@ -208,7 +215,7 @@ SHORT_SHA="${GITHUB_SHA:0:7}"
 
 REPORT="## 🎬 IPTV Performance Critique
 
-> Powered by **Claude claude-opus-4-6** · Runs in parallel with the build · Hard merge gate on CRITICAL / HIGH
+> Powered by **gpt-4o via GitHub Models** (free) · Runs in parallel with the build · Hard merge gate on CRITICAL / HIGH
 
 | | |
 |---|---|

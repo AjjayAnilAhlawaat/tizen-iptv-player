@@ -135,9 +135,10 @@ jobs:
 
   # ── JOB 2: Performance Critic ─────────────────────────────
   # Runs in parallel with build-validate.
-  # Calls Claude claude-opus-4-6 via the Anthropic API, posts the
-  # full critique as a PR comment, and FAILS if CRITICAL or HIGH
-  # issues are found — acting as a hard merge gate.
+  # Calls gpt-4o via GitHub Models API (FREE — uses the automatic
+  # GITHUB_TOKEN, no repo secrets or billing required).
+  # Posts the full critique as a PR comment and FAILS if CRITICAL
+  # or HIGH issues are found — acting as a hard merge gate.
   # ──────────────────────────────────────────────────────────
   performance-critic:
     name: Performance Critic
@@ -150,10 +151,10 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq -q
 
-      - name: Run IPTV Performance Critic (Claude claude-opus-4-6)
+      - name: Run IPTV Performance Critic (gpt-4o via GitHub Models)
         id: critic
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # GITHUB_TOKEN is automatic — no repo secret needed
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_SHA: ${{ github.sha }}
