@@ -1,0 +1,160 @@
+name: Tizen IPTV CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Needed so the critic job can post PR comments
+permissions:
+  contents: read
+  pull-requests: write
+
+# Cancel in-flight runs on the same branch/PR when a new commit is pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ══════════════════════════════════════════════════════════════
+jobs:
+
+  # ── JOB 1: Build & Validate ───────────────────────────────
+  # Runs in parallel with performance-critic.
+  # Validates Tizen package structure and creates the .wgt artefact.
+  # ──────────────────────────────────────────────────────────
+  build-validate:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Manifest ──────────────────────────────────────────
+      - name: Validate config.xml (well-formed XML)
+        run: |
+          sudo apt-get install -y libxml2-utils -q
+          xmllint --noout config.xml
+          echo "✅ config.xml is well-formed XML"
+
+      - name: Validate Tizen app ID format
+        run: |
+          APP_ID=$(xmllint --xpath \
+            "string(//*[local-name()='application']/@id)" config.xml)
+          echo "App ID: ${APP_ID}"
+          if [[ "${APP_ID}" =~ ^[A-Za-z0-9]+\.[A-Za-z0-9]+$ ]]; then
+            echo "✅ App ID format is valid"
+          else
+            echo "❌ App ID '${APP_ID}' does not match required format 'Package.appname'"
+            exit 1
+          fi
+
+      - name: Check required Tizen privilege declarations
+        run: |
+          for priv in "internet" "tv.inputdevice"; do
+            if xmllint --xpath \
+              "//*[local-name()='privilege'][contains(text(),'${priv}')]" \
+              config.xml > /dev/null 2>&1; then
+              echo "✅ Privilege declared: ${priv}"
+            else
+              echo "❌ Missing required privilege: ${priv}"
+              exit 1
+            fi
+          done
+
+      # ── Required files ────────────────────────────────────
+      - name: Check all required source files exist
+        run: |
+          MISSING=0
+          for f in index.html app.js style.css config.xml; do
+            if [ -f "$f" ]; then
+              echo "✅ ${f} present"
+            else
+              echo "❌ ${f} MISSING"
+              MISSING=1
+            fi
+          done
+          [ "$MISSING" -eq 0 ] || exit 1
+
+      # ── JavaScript syntax ─────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: JavaScript syntax check (app.js)
+        run: |
+          node --check app.js
+          echo "✅ app.js has no syntax errors"
+
+      # ── Size gate ─────────────────────────────────────────
+      - name: Check total source size (< 500 KB)
+        run: |
+          TOTAL=$(wc -c < <(cat index.html app.js style.css config.xml))
+          echo "Total source: ${TOTAL} bytes"
+          if [ "$TOTAL" -lt 512000 ]; then
+            echo "✅ Under 500 KB (${TOTAL} bytes)"
+          else
+            echo "❌ Source exceeds 500 KB (${TOTAL} bytes)"
+            exit 1
+          fi
+
+      # ── hls.js CDN reachability ───────────────────────────
+      - name: Verify hls.js CDN URL responds
+        run: |
+          URL=$(grep -oP 'src="\K[^"]+hls[^"]+' index.html | head -1)
+          if [ -z "$URL" ]; then
+            echo "⚠️  No hls.js CDN URL found in index.html — skipping"
+          else
+            HTTP=$(curl -o /dev/null -sw "%{http_code}" --max-time 10 "$URL")
+            if [ "$HTTP" -eq 200 ]; then
+              echo "✅ hls.js CDN reachable (HTTP ${HTTP}): ${URL}"
+            else
+              echo "❌ hls.js CDN returned HTTP ${HTTP}: ${URL}"
+              exit 1
+            fi
+          fi
+
+      # ── Package as .wgt ───────────────────────────────────
+      - name: Package as .wgt (signed zip)
+        run: |
+          zip -r IPTVPlayer.wgt \
+            index.html app.js style.css config.xml
+          ls -lh IPTVPlayer.wgt
+          echo "✅ IPTVPlayer.wgt created ($(wc -c < IPTVPlayer.wgt) bytes)"
+
+      - name: Upload .wgt artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: IPTVPlayer-wgt-${{ github.sha }}
+          path: IPTVPlayer.wgt
+          retention-days: 30
+
+
+  # ── JOB 2: Performance Critic ─────────────────────────────
+  # Runs in parallel with build-validate.
+  # Calls Claude claude-opus-4-6 via the Anthropic API, posts the
+  # full critique as a PR comment, and FAILS if CRITICAL or HIGH
+  # issues are found — acting as a hard merge gate.
+  # ──────────────────────────────────────────────────────────
+  performance-critic:
+    name: Performance Critic
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get install -y jq -q
+
+      - name: Run IPTV Performance Critic (Claude claude-opus-4-6)
+        id: critic
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: bash .github/scripts/critique.sh
