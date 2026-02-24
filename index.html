@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=1920"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+  <title>IPTV Player</title>
+  <link rel="stylesheet" href="style.css"/>
+  <!--
+    hls.js from CDN — only external dependency allowed.
+    The integrity hash covers hls.js 1.5.x stable build.
+    Update if you pin to a different version.
+  -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"
+          crossorigin="anonymous"></script>
+</head>
+<body>
+
+<!-- ============================================================
+     LOADING SCREEN
+     ============================================================ -->
+<div id="screen-loading" class="screen active">
+  <div class="loading-spinner"></div>
+  <div id="loading-text" class="loading-text">Starting…</div>
+  <div id="loading-sub"  class="loading-sub"></div>
+</div>
+
+<!-- ============================================================
+     SETUP / LOGIN SCREEN
+     ============================================================ -->
+<div id="screen-setup" class="screen">
+  <div class="setup-logo">IPTV<span>Player</span></div>
+  <div class="setup-subtitle">Enter your source details to get started</div>
+
+  <div class="setup-card">
+    <!-- Mode tabs -->
+    <div class="mode-tabs" role="tablist">
+      <div id="mode-tab-xtream" class="mode-tab active" role="tab" tabindex="0"
+           aria-selected="true">Xtream Codes</div>
+      <div id="mode-tab-m3u"    class="mode-tab"        role="tab" tabindex="0"
+           aria-selected="false">M3U / M3U8 URL</div>
+    </div>
+
+    <!-- Xtream Codes panel -->
+    <div id="panel-xtream" class="form-panel active" role="tabpanel">
+      <div class="form-group">
+        <label for="input-server">Server URL</label>
+        <input id="input-server" type="url"
+               placeholder="http://yourserver.com:8080"
+               autocomplete="off" autocorrect="off" autocapitalize="none"
+               spellcheck="false"/>
+      </div>
+      <div class="form-group">
+        <label for="input-username">Username</label>
+        <input id="input-username" type="text"
+               placeholder="your_username"
+               autocomplete="off" autocorrect="off" autocapitalize="none"
+               spellcheck="false"/>
+      </div>
+      <div class="form-group">
+        <label for="input-password">Password</label>
+        <input id="input-password" type="password"
+               placeholder="your_password"
+               autocomplete="off"/>
+      </div>
+      <button id="btn-connect" class="btn-primary" type="button">Connect</button>
+    </div>
+
+    <!-- M3U panel -->
+    <div id="panel-m3u" class="form-panel" role="tabpanel">
+      <div class="form-group">
+        <label for="input-m3u-url">Playlist URL</label>
+        <input id="input-m3u-url" type="url"
+               placeholder="http://example.com/playlist.m3u"
+               autocomplete="off" autocorrect="off" autocapitalize="none"
+               spellcheck="false"/>
+      </div>
+      <button id="btn-m3u-load" class="btn-primary" type="button">Load Playlist</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MAIN SCREEN — 3-panel layout
+     ============================================================ -->
+<div id="screen-main" class="screen" role="application" aria-label="IPTV Player">
+
+  <!-- LEFT: Sidebar (categories) -->
+  <nav id="sidebar" aria-label="Categories">
+    <div class="sidebar-header">
+      <div class="sidebar-title">IPTV<span>Player</span></div>
+      <button id="sidebar-settings-btn" class="sidebar-settings-btn"
+              aria-label="Settings" tabindex="0">&#9881;</button>
+    </div>
+
+    <!-- Content type tabs: Live / VOD / Series (Xtream only) -->
+    <div class="category-type-tabs" role="tablist" aria-label="Content type">
+      <button id="cat-tab-live"   class="cat-tab active" role="tab"
+              tabindex="0" aria-selected="true">Live</button>
+      <button id="cat-tab-vod"    class="cat-tab"        role="tab"
+              tabindex="0" aria-selected="false">VOD</button>
+      <button id="cat-tab-series" class="cat-tab"        role="tab"
+              tabindex="0" aria-selected="false">Series</button>
+    </div>
+
+    <!-- Category list -->
+    <div id="category-list" role="listbox" aria-label="Category list"></div>
+  </nav>
+
+  <!-- CENTRE: Channel list -->
+  <section id="channel-panel" aria-label="Channels">
+    <div class="channel-panel-header">
+      <div id="channel-panel-title" class="channel-panel-title">Select a category</div>
+      <div id="channel-count"       class="channel-count">0 channels</div>
+    </div>
+
+    <!-- Search -->
+    <div class="channel-search-wrap">
+      <input id="channel-search" class="channel-search" type="search"
+             placeholder="Search channels…"
+             autocomplete="off" autocorrect="off" autocapitalize="none"
+             spellcheck="false" aria-label="Search channels"/>
+    </div>
+
+    <!-- Virtual / paginated list -->
+    <div id="channel-list" role="listbox" aria-label="Channel list"
+         aria-live="polite"></div>
+
+    <!-- Pagination -->
+    <div class="pagination-bar">
+      <button id="btn-prev-page" class="page-btn" tabindex="0"
+              aria-label="Previous page" disabled>&#9664; Prev</button>
+      <span id="page-info">1 / 1</span>
+      <button id="btn-next-page" class="page-btn" tabindex="0"
+              aria-label="Next page">Next &#9654;</button>
+    </div>
+  </section>
+
+  <!-- RIGHT: Info / preview panel -->
+  <section id="info-panel" aria-label="Channel info">
+    <div class="preview-area">
+      <video id="preview-video" muted playsinline preload="none"></video>
+      <div id="preview-placeholder" class="preview-placeholder">
+        <div class="preview-placeholder-icon">&#9654;</div>
+        <div class="preview-placeholder-text">Select a channel and press Enter to play</div>
+      </div>
+      <div id="preview-loading" class="preview-loading" aria-hidden="true">
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+    <div class="channel-meta">
+      <div id="meta-channel-name" class="meta-channel-name">—</div>
+      <div id="meta-group-badge"  class="meta-group-badge">—</div>
+
+      <div class="meta-row">
+        <span>Press <strong>Enter / Play</strong> to launch fullscreen</span>
+      </div>
+      <div class="meta-row">
+        <span>Press <strong>&#8592; Left</strong> to return to channel list</span>
+      </div>
+
+      <button id="meta-play-btn" class="meta-play-btn" tabindex="0"
+              aria-label="Play selected channel">
+        &#9654; Play
+      </button>
+    </div>
+  </section>
+</div>
+
+<!-- ============================================================
+     FULLSCREEN PLAYER SCREEN
+     ============================================================ -->
+<div id="screen-player" class="screen" role="application" aria-label="Video player">
+  <video id="player-video"
+         playsinline
+         preload="none"
+         aria-label="Video stream"></video>
+
+  <!-- OSD overlay -->
+  <div id="osd" aria-hidden="true">
+    <div class="osd-top">
+      <div id="osd-channel-name" class="osd-channel-name"></div>
+      <div id="osd-time"         class="osd-time"></div>
+    </div>
+    <div class="osd-bottom">
+      <span class="osd-hint">&#9664;&#9654; Navigate &nbsp;|&nbsp; Back — Return</span>
+    </div>
+  </div>
+
+  <!-- Error overlay -->
+  <div id="player-error" role="alert" aria-live="assertive">
+    <div class="error-icon">&#9888;</div>
+    <div id="error-msg"  class="error-msg">Stream error</div>
+    <div class="error-sub">The stream could not be played</div>
+    <button id="error-retry-btn" class="error-retry-btn" tabindex="0">
+      &#8635; Retry
+    </button>
+  </div>
+</div>
+
+<!-- ============================================================
+     SETTINGS OVERLAY
+     ============================================================ -->
+<div id="screen-settings" class="screen" role="dialog" aria-modal="true"
+     aria-label="Settings">
+  <div class="settings-dialog">
+    <div class="settings-header">
+      <div class="settings-title">Settings</div>
+      <button id="settings-close-btn" class="settings-close-btn"
+              tabindex="0" aria-label="Close settings">&#10005; Close</button>
+    </div>
+
+    <div class="settings-section-title">Source</div>
+
+    <div class="settings-option">
+      <label>Current mode</label>
+      <span id="settings-mode-label">—</span>
+    </div>
+    <div class="settings-option">
+      <label>Server / URL</label>
+      <span id="settings-server-label" style="font-size:20px;max-width:360px;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</span>
+    </div>
+
+    <button id="btn-switch-source" class="btn-primary"
+            style="margin-top:36px;" tabindex="0">
+      Switch Source / Re-enter Credentials
+    </button>
+  </div>
+</div>
+
+<!-- ============================================================
+     TOAST NOTIFICATION
+     ============================================================ -->
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

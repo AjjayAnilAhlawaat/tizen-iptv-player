@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="http://tizen.ajay.iptvplayer"
+        version="1.0.0"
+        viewmodes="fullscreen">
+
+    <tizen:application id="AjayIPTV.iptv"
+                       package="AjayIPTV"
+                       required_version="5.0"/>
+
+    <content src="index.html"/>
+
+    <name>IPTV Player</name>
+    <description>Lightweight IPTV Player with Xtream Codes and M3U support</description>
+
+    <icon src="icon.png"/>
+
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+    <tizen:privilege name="http://tizen.org/privilege/network.get"/>
+
+    <feature name="http://tizen.org/feature/network.internet"/>
+
+    <tizen:profile name="tv"/>
+
+    <tizen:category name="http://tizen.org/category/tv"/>
+
+    <tizen:metadata key="http://samsung.com/tv/metadata/drmtype" value="none"/>
+
+    <access origin="*" subdomains="true"/>
+
+    <tizen:allow-navigation>*</tizen:allow-navigation>
+
+    <tizen:setting screen-orientation="landscape"
+                   context-menu="disable"
+                   background-support="enable"
+                   encryption="disable"
+                   install-location="auto"
+                   hwkey-event="enable"/>
+</widget>
