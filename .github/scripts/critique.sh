@@ -2,7 +2,7 @@
 # ══════════════════════════════════════════════════════════════
 # IPTV Performance Critic — GitHub Actions script
 #
-# Makes ONE call to the Groq API (llama-3.3-70b-versatile).
+# Makes ONE call to the Groq API (llama-3.1-8b-instant).
 # Groq is FREE — no credit card, just a free account at
 # console.groq.com. Free tier: 128K context, 30 req/min.
 # No agentic loop — the model gets all source files in one
@@ -97,7 +97,7 @@ PAYLOAD=$(jq -n \
   --rawfile cfg_xml   config.xml  \
   --arg     sys       "$SYSTEM_PROMPT" \
   '{
-    model:      "llama-3.3-70b-versatile",
+    model:      "llama-3.1-8b-instant",
     max_tokens: 4096,
     temperature: 0.1,
     messages: [
@@ -119,7 +119,7 @@ PAYLOAD=$(jq -n \
   }')
 
 # ── Call the Groq API (free tier — no credit card required) ────
-log "Calling llama-3.3-70b-versatile via Groq API (free, 128K context)…"
+log "Calling llama-3.1-8b-instant via Groq API (free, 128K context)…"
 
 HTTP_CODE=$(curl -s -o /tmp/critique_response.json -w "%{http_code}" \
   --max-time 120 \
@@ -220,7 +220,7 @@ SHORT_SHA="${GITHUB_SHA:0:7}"
 
 REPORT="## 🎬 IPTV Performance Critique
 
-> Powered by **llama-3.3-70b-versatile via Groq** (free) · Runs in parallel with the build · Hard merge gate on CRITICAL / HIGH
+> Powered by **llama-3.1-8b-instant via Groq** (free) · Runs in parallel with the build · Hard merge gate on CRITICAL / HIGH
 
 | | |
 |---|---|

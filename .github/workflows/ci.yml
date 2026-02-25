@@ -138,8 +138,8 @@ jobs:
 
   # ── JOB 2: Performance Critic ─────────────────────────────
   # Runs in parallel with build-validate.
-  # Calls llama-3.3-70b-versatile via Groq API (FREE — no credit
-  # card, 128K context, 30 req/min on free tier).
+  # Calls llama-3.1-8b-instant via Groq API (FREE — no credit
+  # card, 128K context, 30K TPM on free tier).
   # Posts the full critique as a PR comment and FAILS if CRITICAL
   # or HIGH issues are found — acting as a hard merge gate.
   # ──────────────────────────────────────────────────────────
@@ -154,7 +154,7 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq -q
 
-      - name: Run IPTV Performance Critic (llama-3.3-70b via Groq)
+      - name: Run IPTV Performance Critic (llama-3.1-8b via Groq)
         id: critic
         env:
           # Free Groq API key — sign up at https://console.groq.com
