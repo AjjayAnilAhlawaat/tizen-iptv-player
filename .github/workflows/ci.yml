@@ -5,6 +5,7 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:   # enables manual "Run workflow" button + gh CLI trigger
 
 # permissions needed across both jobs:
 #   pull-requests: write — critic posts PR comment
