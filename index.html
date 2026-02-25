@@ -161,10 +161,35 @@
         <span>Press <strong>&#8592; Left</strong> to return to channel list</span>
       </div>
 
-      <button id="meta-play-btn" class="meta-play-btn" tabindex="0"
-              aria-label="Play selected channel">
-        &#9654; Play
-      </button>
+      <div class="meta-actions">
+        <button id="meta-play-btn" class="meta-play-btn" tabindex="0"
+                aria-label="Play selected channel">
+          &#9654; Play
+        </button>
+        <button id="btn-fav" class="btn-fav" tabindex="0"
+                aria-label="Add to favourites">
+          &#9825; Favourite
+        </button>
+      </div>
+
+      <!-- EPG — shown only for Xtream live streams -->
+      <div id="epg-section" class="epg-section" style="display:none">
+        <div class="epg-heading">Programme Guide</div>
+        <div id="epg-now" class="epg-row">
+          <span class="epg-badge epg-now-badge">NOW</span>
+          <div class="epg-info">
+            <div id="epg-now-title" class="epg-title">—</div>
+            <div id="epg-now-time"  class="epg-time"></div>
+          </div>
+        </div>
+        <div id="epg-next" class="epg-row">
+          <span class="epg-badge epg-next-badge">NEXT</span>
+          <div class="epg-info">
+            <div id="epg-next-title" class="epg-title">—</div>
+            <div id="epg-next-time"  class="epg-time"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 </div>
@@ -186,6 +211,9 @@
     </div>
     <div class="osd-bottom">
       <span class="osd-hint">&#9664;&#9654; Navigate &nbsp;|&nbsp; Back — Return</span>
+      <span id="osd-track-hint" class="osd-hint osd-track-hint" style="display:none">
+        &nbsp;|&nbsp; &#128993; Audio &nbsp;·&nbsp; &#128994; Subtitles
+      </span>
     </div>
   </div>
 
